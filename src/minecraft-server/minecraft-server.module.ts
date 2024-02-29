@@ -1,21 +1,31 @@
 import { Module } from '@nestjs/common';
 import { MinecraftServerService } from './minecraft-server.service';
 import { MinecraftServerController } from './minecraft-server.controller';
-import { ClientProxyFactory, ClientsModule, Transport } from '@nestjs/microservices';
+
+import { ClientsModule, Transport } from '@nestjs/microservices';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 
 @Module({
-  imports:[
-    ClientsModule.register([
-      {name:'HUB',
-      transport: Transport.TCP,
-      options: {
-        host:'192.168.1.127',
-        port: 4000
-      }
-    }
-    ])
+  imports: [
+    ClientsModule.registerAsync([
+      {
+        name: 'HUB',
+        imports: [ConfigModule],
+        useFactory: async (config: ConfigService) => ({
+          transport: Transport.RMQ,
+          options: {
+            urls: [config.get<string>('RABBITMQ_URL')],
+            queue: config.get<string>('HUB_QUEUE'),
+            queueOptions: {
+              durable: false,
+            },
+          },
+        }),
+        inject: [ConfigService],
+      },
+    ]),
   ],
   providers: [MinecraftServerService],
-  controllers: [MinecraftServerController]
+  controllers: [MinecraftServerController],
 })
 export class MinecraftServerModule {}
