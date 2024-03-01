@@ -17,7 +17,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
             urls: [config.get<string>('RABBITMQ_URL')],
             queue: config.get<string>('HUB_QUEUE'),
             queueOptions: {
-              durable: false,
+              durable: true,
             },
           },
         }),

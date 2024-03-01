@@ -2,7 +2,7 @@ import { Injectable, Inject } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
 import { createWriteStream } from 'fs';
-import { StartServerDto } from './dto';
+import { SendCommandDto, StartServerDto } from './dto';
 import {
   ProcessMessageEvent,
   ProcessStatus,
@@ -22,31 +22,30 @@ export class MinecraftServerService {
   private processId: string;
 
   startMinecraftServer(dto: StartServerDto) {
+    if (this.minecraftServerProcess && !this.minecraftServerProcess.killed)
+      return false;
     try {
       this.processId = dto.id;
-      this.createProcess();
+      this.createProcess(dto);
 
       const logStream = createWriteStream('server.log', { flags: 'a' });
       this.minecraftServerProcess.stdout.pipe(logStream);
       this.minecraftServerProcess.stderr.pipe(logStream);
 
       this.setupListeners();
-      this.hubClient.emit(
-        'status',
-        new ProcessStatusEvent(this.processId, ProcessStatus.ONGOING),
-      );
+      return ProcessStatus.STARTED;
     } catch (e) {
-      this.hubClient.emit(
-        'status',
-        new ProcessStatusEvent(this.processId, ProcessStatus.FAILED),
-      );
+      return ProcessStatus.FAILED;
     }
   }
 
   stopMinecraftServer() {
-    if (this.minecraftServerProcess) {
-      this.sendCommandToMinecraftServer('stop');
-    }
+    try {
+      if (this.minecraftServerProcess) {
+        this.sendCommandToMinecraftServer({ command: 'stop' });
+      }
+    } catch (e) {}
+    return ProcessStatus.ENDED;
   }
 
   killMinecraftServer() {
@@ -55,18 +54,24 @@ export class MinecraftServerService {
     }
   }
 
-  sendCommandToMinecraftServer(command: string) {
+  sendCommandToMinecraftServer(dto: SendCommandDto) {
     if (this.minecraftServerProcess && !this.minecraftServerProcess.killed) {
-      this.minecraftServerProcess.stdin.write(`${command}\n`);
+      this.minecraftServerProcess.stdin.write(`${dto.command}\n`);
     } else {
       console.error('Minecraft server process is not running.');
     }
   }
 
-  createProcess() {
+  createProcess(params: Pick<StartServerDto, 'minMemory' | 'maxMemory'>) {
     this.minecraftServerProcess = spawn(
       'java',
-      ['-Xmx1024M', '-Xms1024M', '-jar', 'server.jar', 'nogui'],
+      [
+        `-Xmx${params.maxMemory}M`,
+        `-Xms${params.minMemory}M`,
+        '-jar',
+        'server.jar',
+        'nogui',
+      ],
       { cwd: 'minecraft/1.20.4', stdio: ['pipe', 'pipe', 'pipe'] },
     );
   }
@@ -92,7 +97,7 @@ export class MinecraftServerService {
     });
     this.minecraftServerProcess.stdout.on('data', (data) => {
       this.hubClient.emit(
-        'message',
+        'process-message',
         new ProcessMessageEvent(this.processId, data.toString()),
       );
     });
