@@ -3,6 +3,7 @@ import { MinecraftServerService } from './minecraft-server/minecraft-server.serv
 import { MinecraftServerModule } from './minecraft-server/minecraft-server.module';
 import { ConfigModule } from '@nestjs/config';
 import { config } from './config/config';
+import { SystemUsageModule } from './system-usage/system-usage.module';
 
 @Module({
   imports: [
@@ -11,6 +12,7 @@ import { config } from './config/config';
       isGlobal: true,
       load: [config],
     }),
+    SystemUsageModule,
   ],
 })
 export class AppModule {}
