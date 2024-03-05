@@ -4,6 +4,7 @@ import { MinecraftServerModule } from './minecraft-server/minecraft-server.modul
 import { ConfigModule } from '@nestjs/config';
 import { config } from './config/config';
 import { SystemUsageModule } from './system-usage/system-usage.module';
+import { CronJobsModule } from 'src/cron-jobs/cron-jobs.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { SystemUsageModule } from './system-usage/system-usage.module';
       load: [config],
     }),
     SystemUsageModule,
+    CronJobsModule,
   ],
 })
 export class AppModule {}
