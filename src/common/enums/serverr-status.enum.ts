@@ -1,0 +1,9 @@
+export enum ServerStatus {
+  UNKNOWN,
+  OFFLINE,
+  ONLINE,
+  ERROR,
+  MAINTENANCE,
+  WAKE_IN_PROGRESS,
+  SHUTDOWN_IN_PROGRESS,
+}
