@@ -10,10 +10,6 @@ export class CommandCollectorSerice {
     private readonly metadataScanner: MetadataScanner,
   ) {}
 
-  async onApplicationBootstrap() {
-    this.getAll();
-  }
-
   getAll(): Command[] {
     const metadata = [];
     const controllers = this.discoveryService.getControllers();
@@ -41,7 +37,6 @@ export class CommandCollectorSerice {
         });
       });
     }
-    console.log(metadata);
     return metadata;
   }
 
