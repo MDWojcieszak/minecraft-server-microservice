@@ -4,6 +4,7 @@ import { SystemUsageController } from './system-usage.controller';
 
 @Module({
   providers: [SystemUsageService],
-  controllers: [SystemUsageController]
+  controllers: [SystemUsageController],
+  exports: [SystemUsageService],
 })
 export class SystemUsageModule {}
