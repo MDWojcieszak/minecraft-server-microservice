@@ -8,5 +8,6 @@ import { ServerSettingsService } from 'src/server-settings/server-settings.servi
   imports: [HubConnectionModule],
   providers: [ServerSettingsService],
   controllers: [ServerSettingsController],
+  exports: [ServerSettingsService],
 })
 export class ServerSettingsModule {}
