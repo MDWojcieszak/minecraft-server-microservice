@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { OnEvent } from '@nestjs/event-emitter';
 import { ClientProxy } from '@nestjs/microservices';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { firstValueFrom } from 'rxjs';
@@ -14,15 +15,16 @@ export class CronJobsService {
   ) {}
   private isRegistered = false;
 
+  @OnEvent('system.registered')
+  handleSystemRegistered() {
+    this.isRegistered = true;
+  }
+
   @Cron(CronExpression.EVERY_30_SECONDS)
   async handleLoad() {
     try {
       const serverName = this.config.get<string>('SERVER_NAME');
       await this.handleLoadRaport(serverName);
-      if (!this.isRegistered) {
-        const registerRes = await this.handleRegistration(serverName);
-        if (registerRes) this.isRegistered = true;
-      }
     } catch (error) {
       console.error('Error executing cron job:', error);
     }
@@ -30,6 +32,8 @@ export class CronJobsService {
 
   async handleLoadRaport(serverName: string) {
     if (!this.isRegistered) return;
+    Logger.log('LOAD RAPORT');
+
     const systemLoad = await this.systemUsage.getSystemLoad();
     const uptime = await this.systemUsage.getSystemUptime();
     console.log(
@@ -43,7 +47,7 @@ export class CronJobsService {
     );
   }
 
-  @Cron(CronExpression.EVERY_MINUTE)
+  @Cron(CronExpression.EVERY_30_SECONDS)
   async handleMemory() {
     try {
       const serverName = this.config.get<string>('SERVER_NAME');
@@ -56,6 +60,8 @@ export class CronJobsService {
 
   async handleMemoryRaport(serverName: string) {
     if (!this.isRegistered) return;
+    Logger.log('MEMORY RAPORT');
+
     const memoryInfo = await this.systemUsage.getMemoryInfo();
     console.log(
       await firstValueFrom(
@@ -80,6 +86,8 @@ export class CronJobsService {
 
   async handleDiskRaport(serverName: string) {
     if (!this.isRegistered) return;
+    Logger.log('DISK RAPORT');
+
     const diskInfo = await this.systemUsage.getDiskInfo();
     console.log(
       await firstValueFrom(
@@ -88,21 +96,6 @@ export class CronJobsService {
           name: serverName,
         }),
       ),
-    );
-  }
-
-  async handleRegistration(serverName: string) {
-    Logger.log('SERVER REGISTRATION');
-    const diskCount = (await this.systemUsage.getDiskInfo()).length;
-    const ipAddress = await this.systemUsage.getPublicIP();
-    const cpu = await this.systemUsage.getCpuInfo();
-    return await firstValueFrom(
-      this.hubClient.send('register-server', {
-        name: serverName,
-        ipAddress,
-        diskCount,
-        cpu,
-      }),
     );
   }
 }
