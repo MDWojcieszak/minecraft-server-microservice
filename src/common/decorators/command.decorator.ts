@@ -7,20 +7,20 @@ import { CommandType } from 'src/common/enums';
 
 export type Command = {
   commandName: string;
-  commandCategory: string;
+  category: string;
   commandType: CommandType;
   commandParams?: Record<string, any>;
 };
 
 export const Command = (
   commandName: Command['commandName'],
-  commandCategory: Command['commandCategory'],
+  category: Command['category'],
   commandType: Command['commandType'],
 ) =>
   SetMetadata('command_metadata', {
     commandName,
     commandType,
-    commandCategory,
+    category,
   });
 
 export const CommandParam = createParamDecorator(
