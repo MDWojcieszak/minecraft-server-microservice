@@ -5,9 +5,15 @@ import { HubConnectionModule } from 'src/hub-connection/hub-connection.module';
 import { SystemUsageModule } from 'src/system-usage/system-usage.module';
 import { CommandCollectorSerice } from 'src/command/command-collector.service';
 import { CommandModule } from 'src/command/command.module';
+import { ServerSettingsModule } from 'src/server-settings/server-settings.module';
 
 @Module({
-  imports: [HubConnectionModule, SystemUsageModule, CommandModule],
+  imports: [
+    HubConnectionModule,
+    SystemUsageModule,
+    CommandModule,
+    ServerSettingsModule,
+  ],
   providers: [SystemRegisterService],
   controllers: [SystemRegisterController],
   exports: [SystemRegisterService],

@@ -5,7 +5,13 @@ import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 import { CommandCollectorSerice } from 'src/command/command-collector.service';
 import { ServerStatus } from 'src/common/enums';
-import { RegisterServerCommandsEvent } from 'src/system-register/events';
+import { ServerSettingsService } from 'src/server-settings/server-settings.service';
+import {
+  RegisterServerCommandsEvent,
+  RegisterServerSettingsEvent,
+  ServerSetting,
+  SettingType,
+} from 'src/system-register/events';
 import { RegisterServerEvent } from 'src/system-register/events/register-server.event';
 import { SystemUsageService } from 'src/system-usage/system-usage.service';
 
@@ -14,6 +20,7 @@ export class SystemRegisterService {
   constructor(
     private config: ConfigService,
     private commandCollector: CommandCollectorSerice,
+    private settingsService: ServerSettingsService,
     private systemUsage: SystemUsageService,
     private eventEmmiter: EventEmitter2,
     @Inject('HUB') private hubClient: ClientProxy,
@@ -34,6 +41,7 @@ export class SystemRegisterService {
         ),
       );
       await this.handleCommandRegistration(serverName);
+      await this.handleSettingsRegistration(serverName);
       this.eventEmmiter.emit('system.registered');
     } catch (e) {
       Logger.error('REGISTRATION FAILED');
@@ -56,7 +64,34 @@ export class SystemRegisterService {
     }
   }
 
-  async registerCommands() {}
+  async handleSettingsRegistration(serverName: string) {
+    try {
+      Logger.log('SETTINGS REGISTRATION');
+      const settings = this.settingsService.getAll();
+      const settingsTable = [];
+      for (const category in settings) {
+        for (const name in settings[category]) {
+          const type = typeof settings[category][name];
+          const settingEvent: ServerSetting = {
+            category,
+            settingName: name,
+            settingType:
+              type === 'number' ? SettingType.NUMBER : SettingType.STRING,
+            settingValue: settings[category][name].toString(),
+          };
+          settingsTable.push(settingEvent);
+        }
+      }
+      await firstValueFrom(
+        this.hubClient.send(
+          'register-settings',
+          new RegisterServerSettingsEvent(serverName, settingsTable),
+        ),
+      );
+    } catch (e) {
+      Logger.error('SETTINGS_REGISTRATION_FAILED');
+    }
+  }
 
   async onApplicationBootstrap() {
     this.handleRegistration();
