@@ -1,57 +1,72 @@
-import { Injectable, Inject } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
+import { Injectable } from '@nestjs/common';
 import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
 import { createWriteStream } from 'fs';
 import { SendCommandDto, StartServerDto } from './dto';
-import {
-  ProcessMessageEvent,
-  ProcessStatus,
-  ProcessStatusEvent,
-} from 'src/minecraft-server/events';
+
+import { ServerSettingsService } from 'src/server-settings/server-settings.service';
+import { ProcessStatus, ServerCategory } from 'src/common/enums';
+import { StopServerDto } from 'src/minecraft-server/dto/stop-server.dto';
+import { ProcessService } from 'src/process/process.service';
 
 @Injectable()
 export class MinecraftServerService {
-  constructor(@Inject('HUB') private hubClient: ClientProxy) {}
-
-  handleStartServer(data: any) {
-    console.log(data);
-    this.hubClient.emit('server_message', { data: 'message_test' });
-  }
+  constructor(
+    private serverSettings: ServerSettingsService,
+    private processService: ProcessService,
+  ) {}
 
   private minecraftServerProcess: ChildProcessWithoutNullStreams;
   private processId: string;
 
-  startMinecraftServer(dto: StartServerDto) {
+  async handleStartServer(dto: StartServerDto) {
+    const settings = this.serverSettings.getMinecrsftServerSettings();
+    const res = await this.processService.registerProcess(
+      dto.context.categoryId,
+      dto.context.userId,
+      ServerCategory.MINECRAFT_SERVER,
+    );
+
+    if (!res) return false;
     if (this.minecraftServerProcess && !this.minecraftServerProcess.killed)
       return false;
-    try {
-      this.processId = dto.id;
-      this.createProcess(dto);
 
+    try {
+      this.processId = res;
+      this.createProcess(settings.min_memory, settings.min_memory);
       const logStream = createWriteStream('server.log', { flags: 'a' });
       this.minecraftServerProcess.stdout.pipe(logStream);
       this.minecraftServerProcess.stderr.pipe(logStream);
-
       this.setupListeners();
-      return ProcessStatus.STARTED;
+      this.processService.postStatus(res, ProcessStatus.STARTED);
+      return true;
     } catch (e) {
-      return ProcessStatus.FAILED;
+      this.processService.postStatus(res, ProcessStatus.FAILED);
+      return false;
     }
   }
 
-  stopMinecraftServer() {
+  createProcess(minMemory: number, maxMemory: number) {
+    this.minecraftServerProcess = spawn(
+      'java',
+      [`-Xmx${maxMemory}M`, `-Xms${minMemory}M`, '-jar', 'server.jar', 'nogui'],
+      { cwd: 'minecraft/1.20.4', stdio: ['pipe', 'pipe', 'pipe'] },
+    );
+  }
+
+  handleStopServer(dto: StopServerDto) {
     try {
       if (this.minecraftServerProcess) {
         this.sendCommandToMinecraftServer({ command: 'stop' });
       }
     } catch (e) {}
-    return ProcessStatus.ENDED;
+    return true;
   }
 
-  killMinecraftServer() {
+  handleKillServer() {
     if (this.minecraftServerProcess) {
       this.minecraftServerProcess.kill();
     }
+    return true;
   }
 
   sendCommandToMinecraftServer(dto: SendCommandDto) {
@@ -62,57 +77,36 @@ export class MinecraftServerService {
     }
   }
 
-  createProcess(params: Pick<StartServerDto, 'minMemory' | 'maxMemory'>) {
-    this.minecraftServerProcess = spawn(
-      'java',
-      [
-        `-Xmx${params.maxMemory}M`,
-        `-Xms${params.minMemory}M`,
-        '-jar',
-        'server.jar',
-        'nogui',
-      ],
-      { cwd: 'minecraft/1.20.4', stdio: ['pipe', 'pipe', 'pipe'] },
-    );
-  }
-
   setupListeners() {
     if (!this.minecraftServerProcess || this.minecraftServerProcess.killed) {
       this.killProcess();
-      return this.hubClient.emit(
-        'status',
-        new ProcessStatusEvent(this.processId, ProcessStatus.FAILED),
+      return this.processService.postStatus(
+        this.processId,
+        ProcessStatus.FAILED,
       );
     }
     this.minecraftServerProcess.on('error', (code) => {
       this.killProcess();
-      return this.hubClient.emit(
-        'status',
-        new ProcessStatusEvent(
-          this.processId,
-          ProcessStatus.FAILED,
-          `Error occured - code:${code}`,
-        ),
+      return this.processService.postStatus(
+        this.processId,
+        ProcessStatus.FAILED,
       );
     });
     this.minecraftServerProcess.stdout.on('data', (data) => {
-      this.hubClient.emit(
-        'process-message',
-        new ProcessMessageEvent(this.processId, data.toString()),
-      );
+      return this.processService.postMessage(this.processId, data.toString());
     });
 
     this.minecraftServerProcess.stdout.on('end', () => {
-      this.hubClient.emit(
-        'status',
-        new ProcessStatusEvent(this.processId, ProcessStatus.ENDED),
+      return this.processService.postStatus(
+        this.processId,
+        ProcessStatus.ENDED,
       );
     });
 
     this.minecraftServerProcess.stdout.on('close', () => {
-      this.hubClient.emit(
-        'status',
-        new ProcessStatusEvent(this.processId, ProcessStatus.CLOSED),
+      return this.processService.postStatus(
+        this.processId,
+        ProcessStatus.CLOSED,
       );
     });
   }
