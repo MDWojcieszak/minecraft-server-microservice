@@ -8,6 +8,7 @@ import { SystemRegisterModule } from './system-register/system-register.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { CommandModule } from 'src/command/command.module';
 import { ServerSettingsModule } from './server-settings/server-settings.module';
+import { ProcessModule } from './process/process.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { ServerSettingsModule } from './server-settings/server-settings.module';
     SystemRegisterModule,
     CommandModule,
     ServerSettingsModule,
+    ProcessModule,
   ],
 })
 export class AppModule {}
