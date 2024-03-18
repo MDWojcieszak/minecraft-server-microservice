@@ -1,5 +1,6 @@
 export enum ServerCategory {
   MINECRAFT_SERVER = 'minecraft_server',
+  TERRARIA_SERVER = 'terraria_server',
 }
 
 export enum MinecraftServerConfig {
