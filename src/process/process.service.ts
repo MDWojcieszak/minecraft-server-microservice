@@ -1,8 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
-import { ProcessStatus } from 'src/common/enums';
+import { CommandStatus, LogLevel, ProcessStatus } from 'src/common/enums';
 import {
+  CommandStatusEvent,
   ProcessMessageEvent,
   ProcessStatusEvent,
   RegisterProcessEvent,
@@ -10,7 +12,10 @@ import {
 
 @Injectable()
 export class ProcessService {
-  constructor(@Inject('HUB') private hubClient: ClientProxy) {}
+  constructor(
+    @Inject('HUB') private hubClient: ClientProxy,
+    private config: ConfigService,
+  ) {}
 
   async registerProcess(categoryId: string, userId: string, name: string) {
     return await firstValueFrom(
@@ -28,10 +33,28 @@ export class ProcessService {
     );
   }
 
-  async postMessage(processId: string, massage: string) {
+  async postMessage(processId: string, massage: string, level?: LogLevel) {
     this.hubClient.emit(
       'process.register-log',
-      new ProcessMessageEvent(processId, massage),
+      new ProcessMessageEvent(processId, massage, level),
+    );
+  }
+
+  async postCommandStatus(
+    commandName: string,
+    category: string,
+    runningProgress?: number,
+    status?: CommandStatus,
+  ) {
+    this.hubClient.emit(
+      'commands.update',
+      new CommandStatusEvent(
+        this.config.get('SERVER_NAME'),
+        commandName,
+        category,
+        runningProgress,
+        status,
+      ),
     );
   }
 }
