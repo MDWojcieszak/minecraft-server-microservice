@@ -4,7 +4,12 @@ import { createWriteStream } from 'fs';
 import { SendCommandDto, StartServerDto } from './dto';
 
 import { ServerSettingsService } from 'src/server-settings/server-settings.service';
-import { ProcessStatus, ServerCategory } from 'src/common/enums';
+import {
+  CommandStatus,
+  LogLevel,
+  ProcessStatus,
+  ServerCategory,
+} from 'src/common/enums';
 import { StopServerDto } from 'src/minecraft-server/dto/stop-server.dto';
 import { ProcessService } from 'src/process/process.service';
 
@@ -93,7 +98,7 @@ export class MinecraftServerService {
       );
     });
     this.minecraftServerProcess.stdout.on('data', (data) => {
-      return this.processService.postMessage(this.processId, data.toString());
+      return this.processMessage(data.toString());
     });
 
     this.minecraftServerProcess.stdout.on('end', () => {
@@ -109,6 +114,80 @@ export class MinecraftServerService {
         ProcessStatus.CLOSED,
       );
     });
+  }
+
+  processMessage(message: string) {
+    let startServerProgress = undefined;
+    let stopServerProgress = undefined;
+    if (message.match(/[M,m]odLauncher running: args[^x]*/)) {
+      startServerProgress = 5;
+    }
+    if (message.match(/Environment/)) {
+      startServerProgress = 15;
+    }
+    if (message.match(/Starting version check at/)) {
+      startServerProgress = 40;
+    }
+    if (message.match(/Reloading ResourceManager/)) {
+      startServerProgress = 45;
+    }
+    if (message.match(/Starting Minecraft/)) {
+      startServerProgress = 50;
+    }
+    if (message.match(/Generating keypair/)) {
+      startServerProgress = 60;
+    }
+    if (message.match(/Using epoll channel type/)) {
+      startServerProgress = 70;
+    }
+    if (message.match(/Preparing level world/)) {
+      startServerProgress = 80;
+    }
+    if (message.match(/Preparing spawn area/)) {
+      startServerProgress = 90;
+    }
+    if (message.match(/[D,d]one[^x]*For help, type help/)) {
+      startServerProgress = 100;
+    }
+    if (message.match(/Stopping the server/)) {
+      stopServerProgress = 5;
+    }
+    if (message.match(/Saving chunks for level/)) {
+      stopServerProgress = 50;
+    }
+    if (message.match(/ThreadedAnvilChunkStorage \(DIM1\)/)) {
+      stopServerProgress = 100;
+    }
+    if (startServerProgress !== undefined) {
+      this.processService.postCommandStatus(
+        'server.start',
+        ServerCategory.MINECRAFT_SERVER,
+        startServerProgress,
+      );
+    }
+    if (stopServerProgress !== undefined) {
+      this.processService.postCommandStatus(
+        'server.stop',
+        ServerCategory.MINECRAFT_SERVER,
+        stopServerProgress,
+      );
+    }
+    let level = LogLevel.LOG;
+    if (message.includes('\u001b[32m')) {
+      message = message.replace('\u001b[32m', '');
+      level = LogLevel.SUCCESS;
+    }
+    if (message.includes('\u001b[33m')) {
+      message = message.replace('\u001b[33m', '');
+      level = LogLevel.WARNING;
+    }
+    if (message.includes('INFO')) {
+      level = LogLevel.SUCCESS;
+    }
+    if (message.includes('WARN')) {
+      level = LogLevel.WARNING;
+    }
+    this.processService.postMessage(this.processId, message, level);
   }
 
   killProcess() {
